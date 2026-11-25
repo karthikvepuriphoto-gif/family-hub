@@ -43,6 +43,16 @@ function column(m) {
 
 const AREA_ORDER = ['Personal care', 'Cleanup'];
 
+function areaOptions() {
+  const seen = new Set(AREA_ORDER.map((a) => a.toLowerCase()));
+  const out = AREA_ORDER.slice();
+  for (const c of store.state.chores) {
+    const a = (c.area || '').trim();
+    if (a && !seen.has(a.toLowerCase())) { seen.add(a.toLowerCase()); out.push(a); }
+  }
+  return out;
+}
+
 function groupChores(list) {
   const labelOf = (c) => {
     const area = (c.area || '').trim();
@@ -90,8 +100,8 @@ function editChore(c, done) {
     <div class="row"><input name="emoji" class="emoji-in" value="${esc(c.emoji)}" maxlength="4"><input name="title" placeholder="Chore name" value="${esc(c.title)}" required autofocus></div>
     <div class="emoji-row">${CHORE_EMOJI.map((x) => `<button type="button" data-e="${x}">${x}</button>`).join('')}</div>
     <label>Who does it</label>${memberPicker(c.memberIds)}
-    <label>Area / group<input name="area" placeholder="e.g. Personal care, Cleanup" value="${esc(c.area || '')}" list="chore-areas"></label>
-    <datalist id="chore-areas"><option value="Personal care"><option value="Cleanup"></datalist>
+    <label>Area / group<input name="area" placeholder="Pick an existing area or type a new one" value="${esc(c.area || '')}" list="chore-areas"></label>
+    <datalist id="chore-areas">${areaOptions().map((a) => `<option value="${esc(a)}">`).join('')}</datalist>
     <label>When<select name="routine">${Object.entries(ROUTINES).map(([k, v]) => `<option value="${k}" ${c.routine === k ? 'selected' : ''}>${v[1]} ${v[0]}</option>`).join('')}</select></label>
     <label>Days</label><div class="days">${DAYS_SHORT.map((d, i) => `<label class="day"><input type="checkbox" name="d" value="${i}" ${c.days.includes(i) ? 'checked' : ''}><span>${d[0]}</span></label>`).join('')}</div>
     <label>Stars earned<input type="number" name="stars" min="0" max="50" value="${c.stars}"></label>
