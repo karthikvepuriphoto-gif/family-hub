@@ -350,3 +350,22 @@ body.night::after { content: ""; position: fixed; inset: 0; background: #000; op
 @media (max-width: 1000px) and (orientation: portrait) {
   .week { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
+
+/* ---------- family meal plan & grocery groups ---------- */
+.batch-card, .dinner-picks { background: var(--card); box-shadow: var(--shadow); border-radius: var(--radius); padding: 1rem 1.1rem; margin: 0 0 1rem; }
+.batch-card p, .dinner-picks > p { margin: .35rem 0 .7rem; color: var(--muted); }
+.batch-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: .35rem; }
+.batch-list li { display: flex; flex-wrap: wrap; align-items: baseline; gap: .4rem .75rem; }
+button.linkish { font-weight: 700; text-align: left; color: var(--ink); }
+button.linkish:hover { color: var(--accent); }
+.dinner-picks h2 { margin-bottom: .2rem; }
+.dp-day { padding: .75rem 0; border-top: 1px solid var(--line); }
+.dp-day:first-of-type { border-top: 0; }
+.dp-day.today { background: var(--soft); margin: 0 -.6rem; padding: .75rem .6rem; border-radius: 12px; border-top-color: transparent; }
+.dp-day header { display: flex; flex-wrap: wrap; align-items: baseline; gap: .35rem .8rem; margin-bottom: .45rem; }
+.kids-note { color: var(--muted); font-size: .88rem; }
+.dp-sugs { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: .45rem; }
+.suggest { display: flex; flex-direction: column; align-items: flex-start; gap: .15rem; text-align: left; padding: .65rem .75rem; border-radius: 14px; background: var(--soft); min-height: 64px; border: 2px solid transparent; }
+.suggest.on { border-color: var(--accent); background: var(--card); }
+.list-group-h { list-style: none; font-size: .75rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding: .85rem 0 .25rem; }
+.chore-area { letter-spacing: .05em; }

@@ -1,9 +1,10 @@
 // Meal planner: weekly grid, recipe ideas ("what can I make with…"), and the family recipe box.
-import { store, mealOn, MEAL_LABELS, addToGroceries } from '../store.js';
-import { esc, addDays, startOfDay, startOfWeek, isToday, fmtDayShort, DAYS_SHORT, MONTHS } from '../util.js';
+import { store, mealOn, MEAL_LABELS, addToGroceries, rebuildWeeklyGroceries } from '../store.js';
+import { esc, addDays, startOfDay, startOfWeek, isToday, ymd, fmtDayShort, DAYS_SHORT, MONTHS } from '../util.js';
 import { toast } from '../ui.js';
 import { openMealSlot, openRecipe, openIdea, editRecipe, ideaCard } from '../editors.js';
 import { recipeIdeas, mealsWithIngredient, searchMeals, DIETS } from '../services.js';
+import { weekMenu, dinnerLabel, recipeByKey, WEEKLY_LIST_NAME } from '../family.js';
 
 const ui = { week: startOfWeek(new Date(), store.state.settings.weekStart), tab: 'plan', results: null, query: '', busy: false };
 
@@ -11,7 +12,7 @@ export function render(root) {
   const s = store.state;
   root.innerHTML = `<div class="toolbar">
       <div class="seg">${[['plan', '📅 Plan'], ['ideas', '💡 Ideas'], ['box', '📖 Our recipes']].map(([k, l]) => `<button class="${ui.tab === k ? 'on' : ''}" data-tab="${k}">${l}</button>`).join('')}</div>
-      ${ui.tab === 'plan' ? `<div class="row"><button class="icon-btn" data-wk="-1">‹</button><b>${weekLabel()}</b><button class="icon-btn" data-wk="1">›</button><button class="btn" data-groc>🛒 Week's ingredients → list</button></div>` : ''}
+      ${ui.tab === 'plan' ? `<div class="row wrap"><button class="icon-btn" data-wk="-1">‹</button><b>${weekLabel()}</b><button class="icon-btn" data-wk="1">›</button><button class="btn" data-rebuild>🛒 Rebuild Weekly groceries</button></div>` : ''}
       ${ui.tab === 'box' ? '<button class="btn primary" data-newrec>＋ New recipe</button>' : ''}
     </div>
     <div id="mealbody">${ui.tab === 'plan' ? plan() : ui.tab === 'ideas' ? ideas() : box()}</div>`;
@@ -21,7 +22,11 @@ export function render(root) {
     const tab = t.closest('[data-tab]'); if (tab) { ui.tab = tab.dataset.tab; return render(root); }
     const wk = t.closest('[data-wk]'); if (wk) { ui.week = addDays(ui.week, 7 * +wk.dataset.wk); return render(root); }
     const cell = t.closest('[data-cell]'); if (cell) { const [i, slot] = cell.dataset.cell.split(':'); return openMealSlot(addDays(ui.week, +i), slot); }
-    if (t.closest('[data-groc]')) return weekToGroceries();
+    if (t.closest('[data-rebuild]')) return rebuildList();
+    const sug = t.closest('[data-sug]');
+    if (sug) return pickSuggestion(+sug.dataset.day, sug.dataset.sug);
+    const recLink = t.closest('[data-batchrec]');
+    if (recLink) { const r = store.state.recipes.find((x) => x.presetKey === recLink.dataset.batchrec || x.id === recLink.dataset.batchrec); if (r) return openRecipe(r); }
     if (t.closest('[data-newrec]')) return editRecipe({});
     const rec = t.closest('[data-rec]'); if (rec) return openRecipe(s.recipes.find((r) => r.id === rec.dataset.rec));
     const idea = t.closest('[data-idea]');
@@ -57,12 +62,62 @@ function weekLabel() {
 function plan() {
   const slots = store.state.settings.mealSlots;
   const days = Array.from({ length: 7 }, (_, i) => addDays(ui.week, i));
-  return `<div class="mealgrid" style="--slots:${slots.length}">
+  const menu = weekMenu(ui.week);
+  return `${batchCard(menu)}
+    <div class="mealgrid" style="--slots:${slots.length}">
     <span></span>${slots.map((s) => `<span class="mg-h">${MEAL_LABELS[s]}</span>`).join('')}
     ${days.map((d, i) => `<span class="mg-day ${isToday(d) ? 'today' : ''}"><small>${DAYS_SHORT[d.getDay()]}</small><b>${d.getDate()}</b></span>
       ${slots.map((slot) => { const m = mealOn(d, slot); const r = m && m.recipeId ? store.state.recipes.find((x) => x.id === m.recipeId) : null;
         return `<button class="mg-cell ${m ? 'filled' : ''} ${isToday(d) ? 'today' : ''}" data-cell="${i}:${slot}">${r && r.image ? `<img src="${esc(r.image)}/preview" alt="">` : ''}<span>${m ? esc(m.text) : '+'}</span></button>`; }).join('')}`).join('')}
-  </div>`;
+  </div>
+  ${dinnerPicks(menu, days)}`;
+}
+
+function batchCard(menu) {
+  return `<section class="batch-card">
+    <div class="card-h"><h2>🍲 Sunday batch cook · ${esc(menu.label)}</h2></div>
+    <p>${esc(menu.batchNote)}</p>
+    <ul class="batch-list">${menu.batch.map((r) => `<li><button type="button" class="linkish" data-batchrec="${esc(r.key)}"><b>${esc(r.title)}</b></button>
+      <span class="muted small">${esc(r.source)}</span></li>`).join('')}</ul>
+  </section>`;
+}
+
+function dinnerPicks(menu, days) {
+  return `<section class="dinner-picks">
+    <h2>Dinner ideas</h2>
+    <p class="muted small">Two or three rice-free adult dinners (under 30 minutes) each night. Tap one to put it on the plan. The kids usually eat Sunday-batch leftovers with rice.</p>
+    ${menu.days.map((day, i) => {
+      const planned = mealOn(day.date, 'dinner');
+      const selected = (planned && planned.suggestionKey) || '';
+      return `<div class="dp-day ${isToday(day.date) ? 'today' : ''}">
+        <header><b>${DAYS_SHORT[day.date.getDay()]} ${day.date.getDate()}</b>
+          <span class="kids-note">Kids: ${esc(day.kids)}</span></header>
+        <div class="dp-sugs">${day.suggestions.map((s) => `<button type="button" class="suggest ${selected === s.key || (planned && planned.text && planned.text.startsWith(s.title)) ? 'on' : ''}" data-sug="${esc(s.key)}" data-day="${i}">
+          <b>${esc(s.title)}</b>
+          <span class="muted small">${[s.riceFree ? 'Rice-free' : '', s.mins, s.source].filter(Boolean).join(' · ')}</span>
+        </button>`).join('')}</div>
+      </div>`;
+    }).join('')}
+  </section>`;
+}
+
+function pickSuggestion(dayIndex, key) {
+  const menu = weekMenu(ui.week);
+  const day = menu.days[dayIndex];
+  if (!day) return;
+  const suggestion = day.suggestions.find((s) => s.key === key);
+  if (!suggestion) return;
+  const rec = recipeByKey(store.state, key);
+  store.update((s) => {
+    const slot = s.meals[ymd(day.date)] || (s.meals[ymd(day.date)] = {});
+    slot.dinner = { text: dinnerLabel(suggestion), recipeId: rec ? rec.id : '', suggestionKey: key };
+  });
+  toast(`Dinner set: ${suggestion.title}`);
+}
+
+function rebuildList() {
+  const n = rebuildWeeklyGroceries(ui.week);
+  toast(n ? `Rebuilt ${WEEKLY_LIST_NAME} with ${n} item${n > 1 ? 's' : ''} from the Sunday cook and selected dinners` : 'Nothing to add — pick a dinner first');
 }
 
 function ideas() {

@@ -1,53 +1,27 @@
 // App state: one JSON document in localStorage, plus helpers that read it.
-import { uid, ymd, parseYmd, parseLocal, toLocal, addDays, startOfDay, DAY_MS } from './util.js';
+import { uid, ymd, parseYmd, parseLocal, toLocal, addDays, startOfDay, startOfWeek, DAY_MS } from './util.js';
+import { applyFamilyPreset, writeWeeklyGroceries } from './family.js';
 
 const KEY = 'familyhub.v1';
 export const COLORS = ['#e8590c', '#1c7ed6', '#2f9e44', '#ae3ec9', '#f08c00', '#0ca678', '#e64980', '#4263eb', '#868e96'];
 export const FAMILY_COLOR = '#5c6b7a';
 
-function demo() {
-  const today = startOfDay(new Date());
-  const at = (dayOffset, h, m = 0) => { const d = addDays(today, dayOffset); d.setHours(h, m); return toLocal(d); };
-  const m = [
-    { id: uid(), name: 'Mom', color: COLORS[0], emoji: '🌻', kid: false },
-    { id: uid(), name: 'Dad', color: COLORS[1], emoji: '🧢', kid: false },
-    { id: uid(), name: 'Kiddo', color: COLORS[2], emoji: '🐬', kid: true },
-  ];
-  const [mom, dad, kid] = m.map((x) => x.id);
-  const groceries = { id: uid(), name: 'Groceries', kind: 'shopping', items: ['Milk', 'Bananas', 'Bread', 'Eggs'].map((t) => ({ id: uid(), text: t, done: false })) };
+function defaults() {
   return {
     version: 1,
-    sample: true,
-    members: m,
-    events: [
-      { id: uid(), title: 'School drop-off', start: at(0, 7, 45), end: at(0, 8, 15), memberIds: [dad, kid], repeat: 'weekdays' },
-      { id: uid(), title: 'Swim lesson', start: at(1, 17, 0), end: at(1, 18, 0), memberIds: [kid, mom], repeat: 'weekly', location: 'Community pool' },
-      { id: uid(), title: 'Team standup', start: at(0, 9, 30), end: at(0, 10, 0), memberIds: [mom], repeat: 'weekdays' },
-      { id: uid(), title: 'Family movie night', start: at(3, 19, 0), end: at(3, 21, 0), memberIds: [], repeat: 'none' },
-    ],
+    sample: false,
+    members: [],
+    events: [],
     feeds: [],
     feedEvents: {},
     googleAccounts: [],
-    chores: [
-      { id: uid(), title: 'Make bed', emoji: '🛏️', memberIds: [kid], routine: 'morning', days: [0, 1, 2, 3, 4, 5, 6], stars: 1 },
-      { id: uid(), title: 'Brush teeth', emoji: '🪥', memberIds: [kid], routine: 'morning', days: [0, 1, 2, 3, 4, 5, 6], stars: 1 },
-      { id: uid(), title: 'Pack school bag', emoji: '🎒', memberIds: [kid], routine: 'afternoon', days: [0, 1, 2, 3, 4], stars: 1 },
-      { id: uid(), title: 'Reading 20 min', emoji: '📚', memberIds: [kid], routine: 'evening', days: [0, 1, 2, 3, 4, 5, 6], stars: 2 },
-      { id: uid(), title: 'Clear the table', emoji: '🍽️', memberIds: [kid, dad], routine: 'evening', days: [0, 1, 2, 3, 4, 5, 6], stars: 1 },
-      { id: uid(), title: 'Take out trash', emoji: '🗑️', memberIds: [dad], routine: 'anytime', days: [2], stars: 1 },
-    ],
+    chores: [],
     choreLog: {},
     ledger: [],
-    rewards: [
-      { id: uid(), title: 'Extra screen time (30 min)', emoji: '📺', cost: 10 },
-      { id: uid(), title: 'Pick dinner', emoji: '🍕', cost: 15 },
-      { id: uid(), title: 'Trip to the aquarium', emoji: '🐬', cost: 60 },
-    ],
+    rewards: [],
     meals: {},
-    recipes: [
-      { id: uid(), title: 'Veggie fried rice', ingredients: ['Cooked rice', 'Eggs', 'Frozen peas & carrots', 'Soy sauce', 'Green onions'], steps: 'Scramble eggs, set aside. Stir-fry veggies, add rice and soy sauce, fold in eggs and onions.', url: '', tags: ['quick'], lastCooked: '' },
-    ],
-    lists: [groceries, { id: uid(), name: 'To-do', kind: 'todo', items: [{ id: uid(), text: 'Book dentist appointment', done: false, memberId: mom }] }],
+    recipes: [],
+    lists: [],
     settings: {
       familyName: 'Our Family',
       pin: '',
@@ -70,11 +44,14 @@ function load() {
     const raw = localStorage.getItem(KEY);
     if (raw) return migrate(JSON.parse(raw));
   } catch (e) { console.warn('Could not load saved data', e); }
-  return demo();
+  const fresh = applyFamilyPreset(defaults());
+  try { localStorage.setItem(KEY, JSON.stringify(fresh)); }
+  catch (e) { console.warn('Could not save family setup', e); }
+  return fresh;
 }
 
 function migrate(s) {
-  const d = demo();
+  const d = defaults();
   for (const k of Object.keys(d)) if (s[k] === undefined) s[k] = d[k];
   s.settings = Object.assign({}, d.settings, s.settings);
   if (!Array.isArray(s.googleAccounts)) s.googleAccounts = [];
@@ -93,7 +70,7 @@ export const store = {
   },
   update(fn) { fn(this.state); this.save(); },
   replace(next) { this.state = migrate(next); this.save(); },
-  reset() { localStorage.removeItem(KEY); this.state = demo(); this.save(); },
+  reset() { localStorage.removeItem(KEY); this.state = applyFamilyPreset(defaults()); this.save(); },
   clearSample() {
     const s = this.state;
     Object.assign(s, { events: [], chores: [], choreLog: {}, ledger: [], meals: {}, recipes: [], sample: false });
@@ -223,4 +200,10 @@ export function addToGroceries(items) {
   }
   store.save();
   return added;
+}
+
+export function rebuildWeeklyGroceries(weekStartDate) {
+  let n = 0;
+  store.update((s) => { n = writeWeeklyGroceries(s, weekStartDate || startOfWeek(new Date(), s.settings.weekStart || 0), { replace: true }); });
+  return n;
 }

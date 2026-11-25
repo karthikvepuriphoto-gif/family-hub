@@ -1,6 +1,7 @@
 // Shared lists: groceries, to-dos, packing lists… with optional assignee.
 import { store, member } from '../store.js';
 import { esc, uid } from '../util.js';
+import { GROCERY_GROUPS } from '../family.js';
 import { avatar, confirmBox, openModal } from '../ui.js';
 
 let current = null;
@@ -19,7 +20,7 @@ export function render(root) {
       <form class="additem" id="additem"><input name="t" placeholder="Add an item…" autocomplete="off" enterkeyhint="done">
         ${list.kind === 'todo' ? `<select name="who"><option value="">Anyone</option>${s.members.map((m) => `<option value="${m.id}">${esc(m.emoji)} ${esc(m.name)}</option>`).join('')}</select>` : ''}
         <button class="btn primary">Add</button></form>
-      <ul class="items">${open.map(item).join('') || '<li class="empty">All clear! ✨</li>'}</ul>
+      <ul class="items">${renderItems(open) || '<li class="empty">All clear! ✨</li>'}</ul>
       ${done.length ? `<details class="done-items" ${done.length < 6 ? 'open' : ''}><summary>${done.length} checked off <button class="btn small ghost" data-clear>Clear</button></summary><ul class="items">${done.map(item).join('')}</ul></details>` : ''}
     </section>` : '<p class="empty">Create a list to get started.</p>'}
   </div>`;
@@ -46,6 +47,20 @@ export function render(root) {
 }
 
 const item = (i) => `<li class="item ${i.done ? 'done' : ''}"><button class="item-main" data-item="${i.id}"><span class="box">${i.done ? '✓' : ''}</span><span>${esc(i.text)}</span>${i.memberId && member(i.memberId) ? avatar(member(i.memberId), 'xs') : ''}</button><button class="icon-btn x" data-del="${i.id}" aria-label="Remove">✕</button></li>`;
+
+function renderItems(items) {
+  if (!items.length) return '';
+  if (!items.some((i) => i.group)) return items.map(item).join('');
+  const groups = [];
+  const seen = new Set();
+  for (const g of GROCERY_GROUPS) {
+    const chunk = items.filter((i) => i.group === g);
+    if (chunk.length) { groups.push([g, chunk]); seen.add(g); }
+  }
+  const other = items.filter((i) => !seen.has(i.group));
+  if (other.length) groups.push(['Other', other]);
+  return groups.map(([g, chunk]) => `<li class="list-group-h">${esc(g)}</li>${chunk.map(item).join('')}`).join('');
+}
 
 function editList(l) {
   const isNew = !l.id;

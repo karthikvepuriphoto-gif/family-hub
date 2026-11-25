@@ -2,6 +2,7 @@
 import { store, COLORS } from '../store.js';
 import { esc, uid, ymd } from '../util.js';
 import { avatar, openModal, confirmBox, toast, EMOJIS } from '../ui.js';
+import { mergeFamilySetup, summarizeMerge } from '../family.js';
 import { geocode, fetchText, DIETS } from '../services.js';
 import { parseICS } from '../ics.js';
 import { listPhotos, addPhotoFiles, deletePhoto, startScreensaver } from '../photos.js';
@@ -16,7 +17,9 @@ export function render(root, go, ctx) {
   <section class="card"><div class="card-h"><h2>👪 Family</h2></div>
     <label>Family name<input data-set="familyName" value="${esc(st.familyName)}"></label>
     <div class="members">${s.members.map((m) => `<button class="mrow" data-member="${m.id}">${avatar(m)}<b>${esc(m.name)}</b><span class="muted small">${m.kid ? 'Kid · earns stars' : 'Grown-up'}</span></button>`).join('')}</div>
-    <button class="btn" data-addmember>＋ Add family member</button>
+    <div class="row wrap"><button class="btn" data-addmember>＋ Add family member</button>
+      <button class="btn" data-loadfamily>Load our family setup</button></div>
+    <p class="muted small">“Load our family setup” adds Karthik, Navya, Nivaan and Myra, their chores, the two-week meal plan and a Weekly groceries list. It merges with what’s already here and won’t delete anything.</p>
   </section>
 
   <section class="card"><div class="card-h"><h2>☀️ Weather</h2></div>
@@ -134,6 +137,12 @@ export function render(root, go, ctx) {
     const t = e.target;
     const mb = t.closest('[data-member]'); if (mb) return editMember(s.members.find((m) => m.id === mb.dataset.member));
     if (t.closest('[data-addmember]')) return editMember({});
+    if (t.closest('[data-loadfamily]')) {
+      let result;
+      store.update((x) => { result = mergeFamilySetup(x); });
+      toast(summarizeMerge(result));
+      return;
+    }
     if (t.closest('[data-locate]')) {
       navigator.geolocation.getCurrentPosition((p) => { store.update((x) => Object.assign(x.settings, { place: 'My location', lat: +p.coords.latitude.toFixed(3), lon: +p.coords.longitude.toFixed(3) })); toast('Weather location saved'); }, () => toast('Location not available — search for your town instead'));
       return;
@@ -179,7 +188,7 @@ export function render(root, go, ctx) {
     }
     if (t.closest('[data-clearpin]')) { store.update((x) => { x.settings.pin = ''; }); toast('PIN removed'); return; }
     if (t.closest('[data-export]')) return exportBackup();
-    if (t.closest('[data-reset]') && (await confirmBox('Erase all events, chores, meals, lists and settings on this device? Photos are kept.', 'Erase', true))) { store.reset(); toast('Reset to sample data'); }
+    if (t.closest('[data-reset]') && (await confirmBox('Erase all events, chores, meals, lists and settings on this device? Photos are kept.', 'Erase', true))) { store.reset(); toast('Reset to the Vepuri family setup'); }
   };
 
   root.querySelectorAll('[data-gcal]').forEach((el) => el.addEventListener('change', async () => {
