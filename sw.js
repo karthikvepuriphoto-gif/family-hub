@@ -1,8 +1,8 @@
 // Offline support: cache the app shell; always go to the network for weather, recipes and feeds.
-const CACHE = 'familyhub-v1';
+const CACHE = 'familyhub-v2';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css', 'icons/icon.svg', 'icons/icon-192.png',
-  'js/app.js', 'js/util.js', 'js/store.js', 'js/ui.js', 'js/ics.js', 'js/quickadd.js', 'js/services.js', 'js/photos.js', 'js/editors.js',
+  'js/app.js', 'js/util.js', 'js/store.js', 'js/ui.js', 'js/ics.js', 'js/quickadd.js', 'js/services.js', 'js/photos.js', 'js/editors.js', 'js/google.js',
   'js/views/today.js', 'js/views/calendar.js', 'js/views/chores.js', 'js/views/meals.js', 'js/views/lists.js', 'js/views/rewards.js', 'js/views/settings.js',
 ];
 

@@ -27,6 +27,7 @@ function demo() {
     ],
     feeds: [],
     feedEvents: {},
+    googleAccounts: [],
     chores: [
       { id: uid(), title: 'Make bed', emoji: '🛏️', memberIds: [kid], routine: 'morning', days: [0, 1, 2, 3, 4, 5, 6], stars: 1 },
       { id: uid(), title: 'Brush teeth', emoji: '🪥', memberIds: [kid], routine: 'morning', days: [0, 1, 2, 3, 4, 5, 6], stars: 1 },
@@ -76,6 +77,8 @@ function migrate(s) {
   const d = demo();
   for (const k of Object.keys(d)) if (s[k] === undefined) s[k] = d[k];
   s.settings = Object.assign({}, d.settings, s.settings);
+  if (!Array.isArray(s.googleAccounts)) s.googleAccounts = [];
+  if (!s.feedEvents || typeof s.feedEvents !== 'object') s.feedEvents = {};
   return s;
 }
 

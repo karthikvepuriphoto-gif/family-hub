@@ -9,7 +9,7 @@ A free family command center for any **iPad, Android tablet, or old computer**. 
 | | Nori / Skylight-style hubs | Family Hub |
 |---|---|---|
 | Color-coded family calendar | ✅ | ✅ Day (a column per person), Week, Month and List views, repeating events, swipe to change weeks |
-| Google / iCloud / Outlook sync | ✅ | ✅ Subscribes to any calendar's iCal (.ics) address, read-only, refreshed every 30 min. You can also import .ics files |
+| Google / iCloud / Outlook sync | ✅ | ✅ Sign in with Google (read-only, recommended). Or subscribe to an iCloud/Outlook iCal address, or import a .ics file. Refreshed every 30 min |
 | Chore chart with routines | ✅ | ✅ Morning, after-school, evening and anytime routines on chosen weekdays, with big tap targets for kids |
 | Rewards | ✅ | ✅ Stars per chore, a reward shop, bonus stars and history |
 | Meal planning + grocery list | ✅ | ✅ Weekly meal grid, a family recipe box, and a button that puts the week's ingredients on the list |
@@ -22,7 +22,7 @@ A free family command center for any **iPad, Android tablet, or old computer**. 
 | Double-booking warnings | — | ✅ Flags when one person has two overlapping events |
 | Night mode | — | ✅ Dims the screen automatically on a schedule. Dark theme included |
 | Works offline | — | ✅ Installable app (PWA) that keeps working when Wi-Fi drops |
-| Privacy | Cloud account | Everything stays on your device. No account and no tracking |
+| Privacy | Cloud account | Events, lists and photos stay on your device. Optional Google sign-in is used only to read your calendars; there is no Family Hub server |
 
 ## Set it up on a wall tablet or computer
 
@@ -34,13 +34,18 @@ A free family command center for any **iPad, Android tablet, or old computer**. 
    - **Android:** "Keep screen awake" in the app (Chrome supports it), or Developer options → Stay awake while charging.
    - **iMac / Mac:** open it in Chrome or Safari and press ⌃⌘F for full screen. Set System Settings → Lock Screen → "Turn display off" to Never, and stop the Mac from sleeping.
 
-## Connect Google / iCloud calendars
+## Connect Google calendars
 
-- **Google Calendar** (on a computer): Settings → pick the calendar → *Integrate calendar* → copy the **Secret address in iCal format**.
+**Google sign-in is the recommended way.** In **Settings → Calendars**, tap **Connect Google account** and sign in. You can connect more than one account (each person signs in separately). Then tick the calendars to show, and pick which family member each calendar belongs to so events get their colour.
+
+Only approved test-user Gmail addresses can sign in while the app is in Google's testing mode. If you see a **Google hasn't verified this app** screen, tap **Advanced**, then **Continue**. Access is read-only. Tokens last about an hour; if the tablet asks you to reconnect, tap **Tap to reconnect Google**.
+
+### iCloud, Outlook or an iCal link
+
 - **iCloud:** Calendar app → share the calendar → turn on **Public Calendar** → copy the `webcal://` link.
 - **Outlook:** Settings → Calendar → Shared calendars → *Publish a calendar* → copy the ICS link.
 
-Paste the link in **Settings → Calendars**. Some providers block browsers from reading feeds directly. If a feed won't load, add a CORS proxy (for example a free Cloudflare Worker you own) in the same section, or download the `.ics` file and import it.
+Paste the link in **Settings → Calendars**. Some providers block browsers from reading feeds directly. If a feed won't load, add a CORS proxy (for example a free Cloudflare Worker you own) in the same section, or download the `.ics` file and import it. Google Calendar's secret iCal URLs usually fail in the browser because of CORS — use Google sign-in instead.
 
 ## Data & backups
 
@@ -57,6 +62,7 @@ js/app.js           navigation, clock, wake lock, feeds, screensaver
 js/store.js         data model, repeating events, chores & stars
 js/services.js      weather (Open-Meteo), recipes (TheMealDB), feed fetching
 js/ics.js           iCalendar parser
+js/google.js        Google sign-in and Calendar API
 js/quickadd.js      natural-language event parser
 js/editors.js       event / meal / recipe editors
 js/views/*.js       Home, Calendar, Chores, Meals, Lists, Rewards, Settings

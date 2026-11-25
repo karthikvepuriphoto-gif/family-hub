@@ -285,6 +285,22 @@ label > input, label > select, label > textarea { margin-top: .3rem; color: var(
 code { background: var(--soft); padding: .05rem .3rem; border-radius: 5px; }
 details summary { cursor: pointer; }
 
+.gaccts { display: flex; flex-direction: column; gap: .7rem; }
+.gacct { border: 1px solid var(--line); border-radius: 14px; padding: .65rem .7rem; display: flex; flex-direction: column; gap: .45rem; }
+.gacct .mrow { background: transparent; padding: .2rem 0 .4rem; }
+.gcal-list { display: flex; flex-direction: column; gap: .15rem; }
+.gcal-row { display: flex; align-items: center; gap: .55rem; padding: .35rem 0; color: var(--ink); font-weight: 500; cursor: pointer; }
+.gcal-row input[type="checkbox"] { width: 20px; height: 20px; min-height: 0; padding: 0; flex: none; accent-color: var(--ok); }
+.gcal-row .gcal-name { flex: 1; min-width: 6rem; font-weight: 650; }
+.gcal-row select { width: auto; min-width: 8rem; min-height: 40px; flex: 0 1 10rem; }
+
+.gcal-chip { position: fixed; top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); z-index: 40; min-height: 40px; padding: 0 1rem; border-radius: 99px; background: var(--ink); color: var(--bg); font-weight: 650; font-size: .85rem; box-shadow: var(--shadow); max-width: min(92vw, 22rem); }
+.gcal-chip[hidden] { display: none; }
+@media (max-width: 640px) {
+  .gcal-chip { top: auto; bottom: calc(66px + env(safe-area-inset-bottom)); right: max(10px, env(safe-area-inset-right)); }
+}
+
+
 /* ---------- modal ---------- */
 .modal-wrap { position: fixed; inset: 0; z-index: 50; background: rgba(15, 20, 26, .45); display: grid; place-items: center; padding: 1rem; opacity: 0; transition: opacity .18s; }
 .modal-wrap.show { opacity: 1; }

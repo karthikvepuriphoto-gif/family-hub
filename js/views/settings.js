@@ -5,6 +5,10 @@ import { avatar, openModal, confirmBox, toast, EMOJIS } from '../ui.js';
 import { geocode, fetchText, DIETS } from '../services.js';
 import { parseICS } from '../ics.js';
 import { listPhotos, addPhotoFiles, deletePhoto, startScreensaver } from '../photos.js';
+import {
+  connectGoogleAccount, reconnectGoogleAccount, disconnectGoogleAccount,
+  setCalendarSelected, setCalendarMember, refreshSelectedCalendar,
+} from '../google.js';
 
 export function render(root, go, ctx) {
   const s = store.state, st = s.settings;
@@ -39,8 +43,37 @@ export function render(root, go, ctx) {
     <div class="thumbs" id="thumbs"></div>
   </section>
 
-  <section class="card"><div class="card-h"><h2>📆 Calendars</h2></div>
-    <p class="muted small">Subscribe to a Google, iCloud or Outlook calendar by its <b>secret iCal / .ics address</b> (Google: Calendar settings → “Secret address in iCal format”; iCloud: Share calendar → Public calendar). Feeds are read-only here and refresh every 30 minutes.</p>
+    <section class="card"><div class="card-h"><h2>📆 Calendars</h2></div>
+    <h3>Google accounts</h3>
+    <p class="muted small">Sign in with Google to show your calendars here. This is the recommended way to connect Google Calendar. Only approved family Gmail addresses can sign in. If you see “Google hasn’t verified this app”, tap <b>Advanced</b>, then <b>Continue</b>. Access is read-only, and each person (for example Karthik and Navya) signs in separately.</p>
+    <div class="gaccts">${(s.googleAccounts || []).map((a) => {
+      const nSel = (a.calendars || []).filter((c) => c.selected).length;
+      const nEv = (a.calendars || []).filter((c) => c.selected).reduce((n, c) => n + ((s.feedEvents['gcal:' + a.email + ':' + c.id] || []).length), 0);
+      const when = a.last ? new Date(a.last).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
+      return `<div class="gacct">
+        <div class="mrow">
+          <b>${esc(a.email)}</b>
+          <span class="muted small">${a.needsReconnect ? 'Needs reconnect' : a.error ? '⚠️ ' + esc(a.error) : when ? `${nEv} events · ${nSel} calendar${nSel === 1 ? '' : 's'} · updated ${when}` : 'not loaded yet'}</span>
+          ${a.needsReconnect ? `<button class="btn small" data-greconnect="${esc(a.email)}">Tap to reconnect</button>` : ''}
+          <button class="icon-btn" data-gdisconnect="${esc(a.email)}" title="Disconnect" aria-label="Disconnect ${esc(a.email)}">🗑️</button>
+        </div>
+        <div class="gcal-list">${(a.calendars || []).map((c) => {
+          const color = (s.members.find((m) => m.id === c.memberId) || {}).color || '#5c6b7a';
+          return `<label class="gcal-row">
+            <input type="checkbox" data-gcal data-email="${esc(a.email)}" data-id="${esc(c.id)}" ${c.selected ? 'checked' : ''}>
+            <span class="dot" style="--c:${color}"></span>
+            <span class="gcal-name">${esc(c.summary)}${c.primary ? ' <span class="muted small">primary</span>' : ''}</span>
+            <select data-gmember data-email="${esc(a.email)}" data-id="${esc(c.id)}" ${c.selected ? '' : 'disabled'}>
+              <option value="">Everyone</option>${s.members.map((m) => `<option value="${m.id}" ${c.memberId === m.id ? 'selected' : ''}>${esc(m.emoji)} ${esc(m.name)}</option>`).join('')}
+            </select>
+          </label>`;
+        }).join('') || '<p class="muted small">No calendars found on this account yet.</p>'}</div>
+      </div>`;
+    }).join('') || ''}</div>
+    <button class="btn primary" data-gconnect>Connect Google account</button>
+
+    <h3>iCloud, Outlook or an iCal link</h3>
+    <p class="muted small">For iCloud, Outlook, or any calendar with a secret <b>iCal / .ics address</b>. Feeds are read-only and refresh every 30 minutes. Google Calendar’s secret iCal URLs usually fail in the browser because of CORS — use Google sign-in above instead.</p>
     <div class="feeds">${s.feeds.map((f) => `<div class="mrow"><span class="dot" style="--c:${(s.members.find((m) => m.id === f.memberId) || {}).color || '#5c6b7a'}"></span><b>${esc(f.name)}</b><span class="muted small">${f.error ? '⚠️ ' + esc(f.error) : f.last ? `${(s.feedEvents[f.id] || []).length} events · updated ${new Date(f.last).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : 'not loaded yet'}</span><button class="icon-btn" data-delfeed="${f.id}">🗑️</button></div>`).join('')}</div>
     <form id="feedform" class="form tight">
       <input name="url" placeholder="https://… or webcal://… .ics address" required>
@@ -107,6 +140,35 @@ export function render(root, go, ctx) {
     }
     if (t.closest('[data-fullscreen]')) { const d = document.documentElement; (d.requestFullscreen || d.webkitRequestFullscreen || (() => toast('Use “Add to Home Screen” for full screen'))).call(d); return; }
     if (t.closest('[data-saver]')) return startScreensaver();
+    if (t.closest('[data-gconnect]')) {
+      try {
+        toast('Opening Google…');
+        const email = await connectGoogleAccount();
+        toast('Connected ' + email);
+      } catch (err) {
+        if (!err || err.code !== 'auth-cancelled') toast((err && err.message) || 'Could not connect Google');
+      }
+      return;
+    }
+    const gr = t.closest('[data-greconnect]');
+    if (gr) {
+      try {
+        toast('Opening Google…');
+        const email = await reconnectGoogleAccount(gr.dataset.greconnect);
+        toast('Reconnected ' + email);
+      } catch (err) {
+        if (!err || err.code !== 'auth-cancelled') toast((err && err.message) || 'Could not reconnect Google');
+      }
+      return;
+    }
+    const gd = t.closest('[data-gdisconnect]');
+    if (gd) {
+      if (await confirmBox('Disconnect ' + gd.dataset.gdisconnect + '? Its events will be removed from this device.', 'Disconnect', true)) {
+        disconnectGoogleAccount(gd.dataset.gdisconnect);
+        toast('Disconnected');
+      }
+      return;
+    }
     if (t.closest('[data-refresh]')) { ctx.refreshFeeds(true); toast('Refreshing calendars…'); return; }
     const df = t.closest('[data-delfeed]');
     if (df && (await confirmBox('Remove this calendar feed?', 'Remove', true))) { store.update((x) => { x.feeds = x.feeds.filter((f) => f.id !== df.dataset.delfeed); delete x.feedEvents[df.dataset.delfeed]; }); return; }
@@ -119,6 +181,18 @@ export function render(root, go, ctx) {
     if (t.closest('[data-export]')) return exportBackup();
     if (t.closest('[data-reset]') && (await confirmBox('Erase all events, chores, meals, lists and settings on this device? Photos are kept.', 'Erase', true))) { store.reset(); toast('Reset to sample data'); }
   };
+
+  root.querySelectorAll('[data-gcal]').forEach((el) => el.addEventListener('change', async () => {
+    const email = el.dataset.email, id = el.dataset.id;
+    setCalendarSelected(email, id, el.checked);
+    if (el.checked) {
+      try { await refreshSelectedCalendar(email, id); }
+      catch (err) { if (!err || err.code !== 'auth-cancelled') toast((err && err.message) || 'Could not load that calendar'); }
+    }
+  }));
+  root.querySelectorAll('[data-gmember]').forEach((el) => el.addEventListener('change', () => {
+    setCalendarMember(el.dataset.email, el.dataset.id, el.value);
+  }));
 
   root.querySelector('#feedform').onsubmit = (e) => {
     e.preventDefault();
@@ -192,6 +266,9 @@ function editMember(mb) {
     store.update((x) => {
       x.members = x.members.filter((y) => y.id !== mb.id);
       x.events.forEach((ev) => { ev.memberIds = (ev.memberIds || []).filter((id) => id !== mb.id); });
+      Object.values(x.feedEvents || {}).forEach((list) => list.forEach((ev) => { ev.memberIds = (ev.memberIds || []).filter((id) => id !== mb.id); }));
+      (x.googleAccounts || []).forEach((a) => (a.calendars || []).forEach((c) => { if (c.memberId === mb.id) c.memberId = ''; }));
+      x.feeds.forEach((f) => { if (f.memberId === mb.id) f.memberId = ''; });
       x.chores.forEach((c) => { c.memberIds = c.memberIds.filter((id) => id !== mb.id); });
       x.chores = x.chores.filter((c) => c.memberIds.length);
       x.settings.hidden = x.settings.hidden.filter((id) => id !== mb.id);

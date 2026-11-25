@@ -11,13 +11,14 @@ export function openEvent(ev, occStart) {
   const s = parseLocal(ev.start), e = parseLocal(ev.end || ev.start);
   if (readOnly) {
     const feed = store.state.feeds.find((f) => f.id === ev.feedId);
+    const source = ev.feedName || (feed && feed.name) || 'a connected calendar';
     const os = occStart || s;
     const oe = new Date(os.getTime() + (e - s));
     openModal(`<h2>${esc(ev.title)}</h2>
       <p class="muted">${fmtDayLong(os)} · ${ev.allDay ? 'All day' : fmtRange(os, oe)}</p>
       ${ev.location ? `<p>📍 ${esc(ev.location)}</p>` : ''}
       ${ev.notes ? `<p class="pre">${esc(ev.notes)}</p>` : ''}
-      <p class="muted small">From calendar feed “${esc(feed ? feed.name : 'feed')}”. Edit it in that calendar app.</p>
+      <p class="muted small">From “${esc(source)}”. Edit it in that calendar app.</p>
       <div class="row end"><button class="btn primary" data-close>Close</button></div>`);
     return;
   }

@@ -5,6 +5,7 @@ import { requirePin, toast } from './ui.js';
 import { parseICS } from './ics.js';
 import { fetchText } from './services.js';
 import { initIdle, applyNightDim } from './photos.js';
+import { refreshGoogleCalendars, accountsNeedingReconnect, reconnectGoogleAccount } from './google.js';
 import * as today from './views/today.js';
 import * as calendar from './views/calendar.js';
 import * as chores from './views/chores.js';
@@ -54,7 +55,7 @@ function render(scrollTop) {
 }
 
 $('#nav').addEventListener('click', (e) => { const b = e.target.closest('[data-go]'); if (b) go(b.dataset.go); });
-store.subscribe(() => { applyTheme(); render(false); });
+store.subscribe(() => { applyTheme(); render(false); updateGoogleChip(); });
 
 // ---------- theme ----------
 function applyTheme() {
@@ -77,12 +78,13 @@ function onSettings(key) {
   if (key.startsWith('night')) applyNightDim();
 }
 
-// ---------- calendar feeds ----------
+// ---------- calendar feeds (iCal + Google) ----------
 let feedBusy = false;
 async function refreshFeeds(force) {
   if (feedBusy) return;
   const feeds = store.state.feeds;
-  if (!feeds.length) return;
+  const hasGoogle = (store.state.googleAccounts || []).length;
+  if (!feeds.length && !hasGoogle) return;
   feedBusy = true;
   for (const f of feeds) {
     if (!force && f.last && Date.now() - f.last < 30 * 60000) continue;
@@ -97,8 +99,48 @@ async function refreshFeeds(force) {
       if (force) toast(`${f.name}: ${f.error}`);
     }
   }
+  try { await refreshGoogleCalendars(force); }
+  catch (e) { if (force) toast('Google calendars: ' + String(e.message || e).slice(0, 140)); }
   feedBusy = false;
   store.save();
+  updateGoogleChip();
+}
+
+function updateGoogleChip() {
+  const need = accountsNeedingReconnect();
+  let chip = document.getElementById('gcal-chip');
+  if (!need.length) {
+    if (chip) chip.hidden = true;
+    return;
+  }
+  if (!chip) {
+    chip = document.createElement('button');
+    chip.id = 'gcal-chip';
+    chip.type = 'button';
+    chip.className = 'gcal-chip';
+    document.body.appendChild(chip);
+    chip.addEventListener('click', async () => {
+      const next = accountsNeedingReconnect()[0];
+      if (!next) return;
+      chip.disabled = true;
+      chip.textContent = 'Reconnecting…';
+      try {
+        await reconnectGoogleAccount(next.email);
+        toast('Reconnected ' + next.email);
+      } catch (e) {
+        if (!e || e.code !== 'auth-cancelled') toast('Could not reconnect Google — try again');
+      } finally {
+        chip.disabled = false;
+        updateGoogleChip();
+      }
+    });
+  }
+  chip.hidden = false;
+  chip.textContent = need.length === 1
+    ? 'Tap to reconnect Google'
+    : 'Tap to reconnect Google (' + need.length + ')';
+  chip.title = need.map((a) => a.email).join(', ');
+  chip.setAttribute('aria-label', 'Tap to reconnect Google' + (need[0] ? ' (' + need[0].email + ')' : ''));
 }
 
 // ---------- clock: refresh the screen each minute, full re-render every 5 ----------
